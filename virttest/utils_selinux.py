@@ -55,28 +55,34 @@ class RestoreconError(SelinuxError):
 STATUS_LIST = ['enforcing', 'permissive', 'disabled']
 
 
-def get_status():
+def get_status(session=None):
     """
     Get the status of selinux.
 
+    :param session: remote session object
     :return: string of status in STATUS_LIST.
     :raise SeCmdError: if execute 'getenforce' failed.
     :raise SelinuxError: if 'getenforce' command exit 0,
                     but the output is not expected.
     """
     cmd = 'getenforce'
-    result = process.run(cmd, ignore_status=True)
-    if result.exit_status:
-        raise SeCmdError(cmd, result.stderr)
+    if session:
+        result, output = session.cmd_status_output(cmd)
+    else:
+        result = process.run(cmd, ignore_status=True)
+        output = result.stdout
+        result = result.exit_status
+    if result:
+        raise SeCmdError(cmd, output)
 
     for status in STATUS_LIST:
-        if result.stdout.lower().count(status):
+        if output.lower().count(status):
             return status
         else:
             continue
 
     raise SelinuxError("result of 'getenforce' (%s)is not expected."
-                       % result.stdout)
+                       % output)
 
 
 def set_status(status):
