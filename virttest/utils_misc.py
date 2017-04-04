@@ -494,9 +494,15 @@ def log_line(filename, line):
                 pass
             _open_log_files[base_file] = open(log_file, "w")
         timestr = time.strftime("%Y-%m-%d %H:%M:%S")
-        line = unicode("%s: %s" % (timestr, line), errors="ignore")
-        line = line.encode(ENCODING, errors='ignore')
-        _open_log_files[base_file].write("%s\n" % line)
+        try:
+            line = unicode("%s: %s" % (timestr, line), errors="ignore")
+            line = line.encode(ENCODING, errors='ignore')
+            _open_log_files[base_file].write("%s\n" % line)
+        except TypeError:
+            _open_log_files[base_file].write("%s: %s\n"
+                                             % (timestr,
+                                                line.encode(ENCODING,
+                                                            'ignore')))
         _open_log_files[base_file].flush()
     finally:
         _log_lock.release()
