@@ -12,6 +12,7 @@ import commands
 import signal
 import netifaces
 import netaddr
+import platform
 
 import aexpect
 from avocado.core import exceptions
@@ -1589,15 +1590,18 @@ def get_net_if_operstate(ifname, runner=None):
         raise HwOperstarteGetError(ifname, "run operstate cmd error.")
 
 
-def get_vm_network_cfg_file(vm, iface_name):
+def get_vm_network_cfg_file(vm=None, iface_name):
     """
-    Get absolute network cfg file path of the vm instance.
+    Get absolute network cfg file path of the VM or Host.
 
-    :param vm: VM object
+    :param vm: VM object, if None uses Host
     :param iface_name: Name of the network interface
     :return: absolute path of network script file
     """
-    vm_distro = vm.get_distro()
+    if vm:
+        vm_distro = vm.get_distro()
+    else:
+        vm_distro = platform.platform()
     iface_cfg_file = ""
     if "ubuntu" in vm_distro.lower():
         iface_cfg_file = "/etc/network/interfaces"
@@ -1609,12 +1613,12 @@ def get_vm_network_cfg_file(vm, iface_name):
     return iface_cfg_file
 
 
-def create_vm_network_script(vm, iface_name, mac_addr, boot_proto, net_mask,
-                             ip_addr=None, **dargs):
+def create_vm_network_script(vm=None, iface_name, mac_addr, boot_proto,
+                             net_mask, ip_addr=None, **dargs):
     """
-    Form network script with its respective network param for vm instance
+    Form network script with its respective network param for vm or Host.
 
-    :param vm: VM object
+    :param vm: VM object, if None uses Host
     :param iface_name: Name of the network interface
     :param mac_addr: Mac address of the network interface
     :param boot_proto: static ip or dhcp of the interface
@@ -1623,7 +1627,10 @@ def create_vm_network_script(vm, iface_name, mac_addr, boot_proto, net_mask,
     :param dargs: dict of additional attributes
     :return: network interface parameters as list
     """
-    vm_distro = vm.get_distro()
+    if vm:
+        vm_distro = vm.get_distro()
+    else:
+        vm_distro = platform.platform()
     network_param_list = []
     if "ubuntu" in vm_distro.lower():
         network_param_list = ['auto %s' % iface_name, 'iface %s inet %s' %
