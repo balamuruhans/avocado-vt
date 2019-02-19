@@ -875,3 +875,86 @@ class Factory(object):
         if service_name:
             return Factory.create_specific_service(service_name, run)
         return Factory.create_generic_service(run)
+
+
+def singleton_class(class_name):
+    class_instance = {}
+
+    def get_class(*args, **kwargs):
+        host = "local"
+        if kwargs.get("session"):
+            host = "remote"
+        if host not in class_instance:
+            class_object = class_name(*args, **kwargs)
+            class_instance[host] = class_object
+        return class_instance[host]
+    return get_class
+
+
+@singleton_class
+class Service(object):
+    """
+    class to handle service operations in Remote machine/Guest
+    """
+    def __init__(self, service_name, session=None, timeout=120):
+        """
+        Initialize the service return Factory object if session is None
+
+        :param service_name: name of service to be operated
+        :param session: ShellSession Object of remote/guest machine
+        :param timeout: ShellSession timeout
+        """
+        self.session = session
+        if not self.session:
+            self.service = Factory.create_service(service_name)
+        self.service_name = service_name
+        self.func = self.session.cmd_status_output
+        self.timeout = timeout
+
+    def command(self, operate, output=False):
+        """
+        Method to trigger the systemctl commands to operate on the service
+
+        :param operate: operation name start/stop/status
+        :param output: True to return output else return status
+        """
+        cmd = "systemctl %s %s" % (operate, self.service_name)
+        status, output = self.func(cmd, timeout=self.timeout)
+        if status != 0:
+            logging.error("%s returned unexpected status %s", cmd, status)
+        if output:
+            return output
+        return status
+
+    def restart(self):
+        """
+        Method to perform restart operation on the given service
+        """
+        if not self.session:
+            return self.service.restart()
+        return self.command("restart") == 0
+
+    def start(self):
+        """
+        Method to perform start operation on the given service
+        """
+        if not self.session:
+            return self.service.start()
+        return self.command("start") == 0
+
+    def stop(self):
+        """
+        Method to perform stop operation on the given service
+        """
+        if not self.session:
+            return self.service.stop()
+        return self.command("stop") == 0
+
+    def status(self, regex=r"active \(running\)"):
+        """
+        Method to get the status of given service
+        """
+        if not self.session:
+            return self.service.status()
+        output = self.command("status", output=True)
+        return bool(re.search(regex, output))
