@@ -8,7 +8,6 @@ import threading
 import shutil
 import sys
 import copy
-import ast
 import multiprocessing
 try:
     from urllib.request import ProxyHandler, build_opener, install_opener
@@ -43,7 +42,6 @@ from virttest import libvirt_vm
 from virttest import virsh
 from virttest import utils_test
 from virttest import utils_iptables
-from virttest.libvirt_xml import vm_xml
 from virttest.utils_version import VersionInterval
 from virttest.compat_52lts import decode_to_text
 from virttest.staging import service
@@ -1137,9 +1135,13 @@ def preprocess(test, params, env):
                 logging.error(info)
                 THREAD_ERROR = True
         nest_params = params.copy()
+        nested_params = eval(nest_params.get("nested_params", "{}"))
+        # update the current level's param with nested params sent
+        # from previous level
+        nest_params.update(nested_params)
         current_level = nest_params.get("nested_guest_level", "L1")
         max_level = nest_params.get("nested_guest_max_level", "L1")
-        if current_level != max_level:
+        if int(current_level.lstrip("L")) < int(max_level.lstrip("L")):
             threads = []
             nest_timeout = int(nest_params.get("nested_guest_timeout", "3600"))
             install_type = nest_params.get("avocado_guest_install_type", "git")
@@ -1153,20 +1155,21 @@ def preprocess(test, params, env):
             # set memory for the nested VM
             nest_params["vt_extra_params"] = "mem=\"%s\"" % nest_memory
             # pass the params current level to next level
-            nested_params = nest_params.get("nested_params", "{}")
             nest_params["vt_extra_params"] += " nested_params=\"%s\"" % nested_params
-            # update the current level's param with nested params sent
-            # from previous level
-            nest_params.update(ast.literal_eval(nested_params))
-            next_level = "L%s" % (int(current_level[-1]) + 1)
+            # update the current_level for next_level guest
+            nest_params["vt_extra_params"] += (" nested_guest_level=\"L%s\"" %
+                                               (int(current_level.lstrip("L")) +
+                                                1))
+            # persist the max_level in every level of guest
+            nest_params["vt_extra_params"] += (" nested_guest_max_level=\"L%s\"" %
+                                               int(max_level.lstrip("L")))
+            nest_params["vt_extra_params"] += " run_nested_guest_test=\"yes\""
             logging.debug("Test is running in Guest level: %s", current_level)
             for vm in nest_vms:
                 # params with nested level specific configuration
                 new_params = nest_params.object_params(current_level)
                 # params with VM name specific in that particular level
                 new_params = new_params.object_params(vm.name)
-                # update the current_level for next_level guest
-                new_params["nested_guest_level"] = str(next_level)
                 testlist = [new_params.get("avocado_guest_vt_test",
                                            "boot")]
                 avocadotestargs = new_params.get("avocado_guest_add_args", "")
